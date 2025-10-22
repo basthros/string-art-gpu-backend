@@ -26,8 +26,6 @@ if not CUDA_AVAILABLE:
 app = Flask(__name__)
 
 # Global cache for pre-processed data (per session)
-# We use a simple key here, this might grow.
-# A better solution would be an LRU cache.
 preprocessing_cache = {}
 
 
@@ -43,7 +41,6 @@ def radon_fun(f, alpha, R, ideal_image_size):
         p = p_radon * (R * 2 / ideal_image_size)
     else:
         # Use scikit-image's radon
-        # Note: skimage.transform.radon expects angles in degrees
         p_radon = radon(f, theta=alpha, circle=True)
         p = p_radon * (R * 2 / ideal_image_size)
     
@@ -100,7 +97,6 @@ def calculate_string_length(nail_sequence, num_nails, radius_cm):
         angle2 = (nail2 / num_nails) * 2 * np.pi
         
         angle_diff = abs(angle2 - angle1)
-        # Use simplified chord length formula
         chord_length = 2 * radius_m * np.sin(angle_diff / 2)
         total_length += chord_length
     
@@ -111,7 +107,6 @@ def AlphaS2Phi(ALPHA, S, PSI_1, PSI_2, p, R):
     use_cuda = CUDA_AVAILABLE
     
     if use_cuda:
-        # Use CUDA acceleration
         alpha_min = float(np.min(ALPHA))
         alpha_max = float(np.max(ALPHA))
         s_min = float(np.min(S))
@@ -127,7 +122,7 @@ def AlphaS2Phi(ALPHA, S, PSI_1, PSI_2, p, R):
         )
         return p_interpolated
     else:
-        # CPU fallback (scipy.interpolate.griddata)
+        # CPU fallback
         S_clipped = np.clip(S / R, -1.0, 1.0)
         PSI_1_convert = ALPHA - np.arccos(S_clipped)
         PSI_2_convert = ALPHA + np.arccos(S_clipped)
@@ -160,17 +155,14 @@ def preprocess_image(image_bytes, num_nails, image_resolution):
         ideal_image_size = int(image_resolution)
         Num_Nails = int(num_nails)
         
-        # Image loading
         print("📸 Loading and processing image...")
         t_start = time.time()
         img = Image.open(io.BytesIO(image_bytes)).convert('L')
-        # Transpose to match original algorithm's coordinate system
         BW = img.resize((ideal_image_size, ideal_image_size)).transpose(Image.FLIP_TOP_BOTTOM)
         BW_array = np.array(BW) / 255.0
         t_image = time.time() - t_start
         print(f"  ⏱️ Image loading: {t_image:.3f}s")
         
-        # Mask creation
         print("🎭 Creating circular mask...")
         t_start = time.time()
         x = np.linspace(-R, R, ideal_image_size)
@@ -184,7 +176,6 @@ def preprocess_image(image_bytes, num_nails, image_resolution):
         t_mask = time.time() - t_start
         print(f"  ⏱️ Mask creation: {t_mask:.3f}s")
         
-        # Radon transform
         print("🔄 Computing Radon transform...")
         t_start = time.time()
         alpha_deg = np.linspace(0., 180., 3 * Num_Nails, endpoint=False)
@@ -192,7 +183,6 @@ def preprocess_image(image_bytes, num_nails, image_resolution):
         t_radon = time.time() - t_start
         print(f"  ⏱️ Radon transform: {t_radon:.3f}s")
         
-        # Filtering
         print("🔎 Filtering radon data...")
         t_start = time.time()
         ind_keep = np.abs(s) < R
@@ -205,7 +195,6 @@ def preprocess_image(image_bytes, num_nails, image_resolution):
         t_filter = time.time() - t_start
         print(f"  ⏱️ Filtering: {t_filter:.3f}s")
         
-        # PSI grid creation
         print("🔧 Creating PSI grid...")
         t_start = time.time()
         psi_1 = np.linspace(-np.pi, np.pi, Num_Nails + 1)
@@ -218,7 +207,6 @@ def preprocess_image(image_bytes, num_nails, image_resolution):
         t_psi = time.time() - t_start
         print(f"  ⏱️ PSI grid: {t_psi:.3f}s")
         
-        # Interpolation
         print("🔀 Interpolating to PSI coordinates...")
         t_start = time.time()
         p_interpolated = AlphaS2Phi(ALPHA, S, PSI_1, PSI_2, p, R)
@@ -226,7 +214,6 @@ def preprocess_image(image_bytes, num_nails, image_resolution):
         t_interp = time.time() - t_start
         print(f"  ⏱️ Interpolation: {t_interp:.3f}s")
         
-        # Caching
         print("💾 Caching results...")
         cache_key = f"{num_nails}_{image_resolution}"
         
@@ -282,9 +269,6 @@ def generate_pattern(data):
         cache_key = f"{Num_Nails}_{ideal_image_size}"
         use_cache = False
         
-        # --- Use Preprocessing Cache ---
-        # Note: The 'preprocess' endpoint is separate, but for simplicity
-        # we'll allow 'generate' to trigger it if cache is cold.
         if cache_key in preprocessing_cache:
             cached = preprocessing_cache[cache_key]
             use_cache = True
@@ -302,12 +286,10 @@ def generate_pattern(data):
             header, encoded = image_data_url.split(",", 1)
             image_bytes = base64.b64decode(encoded)
             
-            # Run the preprocessing step
             preprocess_result = preprocess_image(image_bytes, Num_Nails, ideal_image_size)
             if preprocess_result['status'] == 'error':
-                return preprocess_result # Propagate error
+                return preprocess_result 
             
-            # Now load from cache
             cached = preprocessing_cache[cache_key]
             p = cached['p']
             PSI_1 = cached['PSI_1']
@@ -325,7 +307,6 @@ def generate_pattern(data):
         size_p = p.shape
         row, col = 0, 0
         
-        # Ensure types are correct (they should be from cache)
         p = p.astype(np.float32)
         
         for i in range(num_max_lines):
