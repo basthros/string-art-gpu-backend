@@ -26,7 +26,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Build CUDA extension (with error handling)
-RUN python3 setup.py build_ext --inplace || echo "CUDA build failed - will use CPU fallback"
+RUN python3 setup.py build_ext --inplace
 
 # Expose port
 EXPOSE 8000
