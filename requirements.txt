@@ -6,3 +6,5 @@ scipy==1.11.2
 reportlab==4.0.4
 runpod==1.6.0
 scikit-image==0.21.0
+pybind11>=2.6
+wheel
