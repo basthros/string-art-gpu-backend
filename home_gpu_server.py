@@ -420,24 +420,18 @@ async def generate_stream_logic(request: GenerateRequest):
             
             nails_used[i] = current_nail
             
-            # 🎨 EMIT NEW LINE EVENTS IN BATCHES (for smoother network performance)
-            # Send batches of 10 lines to reduce network overhead while showing all lines
-            if i >= 1 and i % 10 == 0:
-                # Send last 10 lines in a single batch event
-                batch_lines = []
-                for line_idx in range(max(1, i-9), i+1):
-                    if line_idx >= 1 and line_idx <= i:
-                        batch_lines.append({
-                            "start": int(nails_used[line_idx-1]),
-                            "end": int(nails_used[line_idx])
-                        })
+            # 🎨 EMIT NEW LINE EVENT
+            if i >= 1:
+                event_data = {
+                    "type": "new_line",
+                    "start": int(nails_used[i-1]),
+                    "end": int(nails_used[i])
+                }
+                yield f"data: {json.dumps(event_data)}\n\n"
                 
-                if batch_lines:
-                    event_data = {
-                        "type": "new_lines_batch",
-                        "lines": batch_lines
-                    }
-                    yield f"data: {json.dumps(event_data)}\n\n"
+                # Force flush every 10 lines with SSE comment (prevents tunnel buffering)
+                if i % 10 == 0:
+                    yield ": ping\n\n"
             
             # Progress updates
             if matlab_i % 50 == 0:
