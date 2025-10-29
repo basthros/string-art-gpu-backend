@@ -914,6 +914,16 @@ def test_route():
     print("🎯 TEST ROUTE HIT!")
     return "Flask routing works!"
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Cloudflare tunnel"""
+    return {
+        "status": "healthy",
+        "server": "Socket.IO (app_cuda.py)",
+        "cuda_available": CUDA_AVAILABLE,
+        "port": 8080
+    }, 200
+
 @app.route('/download_template/<num_nails>/<radius_cm>')
 def download_template(num_nails, radius_cm):
     """Generate and download printable template PDF"""
