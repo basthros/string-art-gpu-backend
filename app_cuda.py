@@ -7,6 +7,7 @@ monkey.patch_all()
 # STEP 2: Import everything else.
 from flask import Flask, render_template, request, send_file
 from flask_socketio import SocketIO
+from flask_cors import CORS
 import numpy as np
 from PIL import Image
 from scipy.interpolate import griddata
@@ -42,8 +43,12 @@ if not CUDA_AVAILABLE:
 # STEP 3: Create the application instance.
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
-socketio = SocketIO(app, async_mode='gevent', max_http_buffer_size=50 * 1024 * 1024, 
-                    ping_timeout=120, ping_interval=60)
+
+# Enable CORS for all routes to allow frontend on different domain
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+socketio = SocketIO(app, async_mode='gevent', max_http_buffer_size=50 * 1024 * 1024,
+                    ping_timeout=120, ping_interval=60, cors_allowed_origins="*")
 
 # Global cancel flags
 cancel_flags = {}
