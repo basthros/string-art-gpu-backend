@@ -998,15 +998,17 @@ def handle_start_generation(data):
 
 if __name__ == '__main__':
     port = 8080
-    host = '127.0.0.1'
+    host = '0.0.0.0'  # Listen on all interfaces for Cloudflare tunnel access
     print(f"\n{'='*60}")
-    print(f"🎨 String Art Server")
+    print(f"🎨 String Art Server (Socket.IO)")
     print(f"{'='*60}")
     if CUDA_AVAILABLE:
         print("✅ CUDA Module: Loaded")
     else:
         print("⚠️ CUDA Module: Not loaded")
     print(f"\n🌐 Server: http://{host}:{port}")
+    print(f"   Local: http://127.0.0.1:{port}")
+    print(f"   Cloudflare: https://home-gpu.stringartapp.com")
     print(f"{'='*60}\n")
-    
+
     socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)
