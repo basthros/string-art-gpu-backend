@@ -916,12 +916,21 @@ def test_route():
 
 @app.route('/health')
 def health_check():
-    """Health check endpoint for Cloudflare tunnel"""
+    """Health check endpoint for Cloudflare tunnel and frontend router"""
+    global cancel_flags, preprocessing_in_progress
+
+    # Check if GPU is busy (any active sessions)
+    is_busy = len(cancel_flags) > 0 or len(preprocessing_in_progress) > 0
+
     return {
-        "status": "healthy",
-        "server": "Socket.IO (app_cuda.py)",
-        "cuda_available": CUDA_AVAILABLE,
-        "port": 8080
+        "status": "healthy" if not is_busy else "busy",
+        "gpu_available": CUDA_AVAILABLE,
+        "gpu_busy": is_busy,
+        "gpu_name": "RTX 3070" if CUDA_AVAILABLE else "CPU Only",
+        "server": "Socket.IO",
+        "port": 8080,
+        "active_sessions": len(cancel_flags),
+        "preprocessing_sessions": len(preprocessing_in_progress)
     }, 200
 
 @app.route('/download_template/<num_nails>/<radius_cm>')
