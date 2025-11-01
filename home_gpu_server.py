@@ -25,6 +25,7 @@ import io
 import json
 import numpy as np
 from PIL import Image
+import asyncio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -428,10 +429,12 @@ async def generate_stream_logic(request: GenerateRequest):
                     "end": int(nails_used[i])
                 }
                 yield f"data: {json.dumps(event_data)}\n\n"
-                
+
                 # Force flush every 10 lines with SSE comment (prevents tunnel buffering)
                 if i % 10 == 0:
                     yield ": ping\n\n"
+                    # Yield control to event loop to flush immediately
+                    await asyncio.sleep(0)
             
             # Progress updates
             if matlab_i % 50 == 0:
@@ -442,6 +445,7 @@ async def generate_stream_logic(request: GenerateRequest):
                     "percent": min(90, (matlab_i / num_max_lines) * 90)
                 }
                 yield f"data: {json.dumps(progress_data)}\n\n"
+                await asyncio.sleep(0)  # Flush progress immediately
                 logger.info(f"  Progress: {matlab_i}/{num_max_lines} lines")
             
             if p_max_val < p_theshold:
