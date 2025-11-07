@@ -302,6 +302,7 @@ async def generate_stream_logic(request: GenerateRequest):
         thread_thickness_mm = float(params.get('thread_thickness_mm', 0.25))
         circle_radius_cm = float(params.get('circle_radius_cm', 20))
         image_resolution = int(params.get('image_resolution', 300))
+        invert_colors = bool(params.get('invert_colors', False))  # New parameter for inverted mode
         
         # Decode image
         header, encoded = request.imageData.split(",", 1)
@@ -317,11 +318,19 @@ async def generate_stream_logic(request: GenerateRequest):
         y = np.linspace(-R, R, image_resolution)
         X, Y = np.meshgrid(x, y)
         circular_mask = X**2 + Y**2 <= R**2
-        
+
         BW_array[~circular_mask] = 1.0
-        f = 1 - BW_array
+
+        # Inverted mode: target bright areas instead of dark areas
+        if invert_colors:
+            f = BW_array  # Keep bright values high (algorithm will match bright areas)
+            logger.info("🎨 INVERTED MODE: Targeting bright areas (white-on-black)")
+        else:
+            f = 1 - BW_array  # Keep dark values high (algorithm will match dark areas)
+            logger.info("🎨 NORMAL MODE: Targeting dark areas (black-on-white)")
+
         f[~circular_mask] = 0
-        
+
         # Preprocessing
         cache_key = f"{Num_Nails}_{image_resolution}_{hash(request.imageData)}"
         use_cache = False
@@ -515,7 +524,8 @@ async def generate_stream_logic(request: GenerateRequest):
                 "total_length_m": total_length
             },
             "processing_time": total_time,
-            "gpu_used": "RTX 3070 (Home)" if CUDA_AVAILABLE else "CPU (Home)"
+            "gpu_used": "RTX 3070 (Home)" if CUDA_AVAILABLE else "CPU (Home)",
+            "invert_colors": invert_colors  # Tell frontend which mode was used
         }
         yield f"data: {json.dumps(final_data)}\n\n"
         
