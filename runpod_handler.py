@@ -23,16 +23,17 @@ def handler(event):
         elif endpoint == "preprocess":
             # Import the function directly
             from app_runpod import preprocess_image
-            
+
             # Extract the data needed by the function
             try:
                 header, encoded = input_data['imageData'].split(",", 1)
                 image_bytes = base64.b64decode(encoded)
                 num_nails = int(input_data['num_nails'])
                 image_resolution = int(input_data['image_resolution'])
-                
+                invert_colors = bool(input_data.get('invert_colors', False))
+
                 # Call the function directly and return its dictionary
-                result = preprocess_image(image_bytes, num_nails, image_resolution)
+                result = preprocess_image(image_bytes, num_nails, image_resolution, invert_colors)
                 return result
             except Exception as e:
                 return {"status": "error", "message": f"Error in preprocess handler: {str(e)}"}

@@ -96,17 +96,17 @@ def AlphaS2Phi(ALPHA, S, PSI_1, PSI_2, p, R):
 # =============================================================================
 # Background Pre-Processing Function (for API)
 # =============================================================================
-def preprocess_image(image_bytes, num_nails, image_resolution):
+def preprocess_image(image_bytes, num_nails, image_resolution, invert_colors=False):
     """Pre-compute Radon transform and interpolation"""
     global preprocessing_cache
-    
+
     try:
         print(f"\n📄 Starting pre-processing...")
         t_total_start = time.time()
-        
+
         # --- Calculate image hash ---
         img_hash = hashlib.sha256(image_bytes).hexdigest()[:16] # Use first 16 chars of hash
-        cache_key = f"{img_hash}_{num_nails}_{image_resolution}" # <-- Use new cache key format
+        cache_key = f"{img_hash}_{num_nails}_{image_resolution}_{invert_colors}" # <-- Include invert_colors in cache key
         
         # --- Check cache FIRST ---
         if cache_key in preprocessing_cache:
@@ -132,7 +132,17 @@ def preprocess_image(image_bytes, num_nails, image_resolution):
         t_start = time.time()
         x = np.linspace(-R, R, ideal_image_size); y = np.linspace(-R, R, ideal_image_size)
         X, Y = np.meshgrid(x, y); circular_mask = X**2 + Y**2 <= R**2
-        BW_array[~circular_mask] = 1.0; f = 1 - BW_array; f[~circular_mask] = 0
+        BW_array[~circular_mask] = 1.0
+
+        # Handle inverted colors mode
+        if invert_colors:
+            f = BW_array  # Keep bright values high (algorithm will match bright areas)
+            print("🎨 INVERTED MODE: Targeting bright areas (white-on-black)")
+        else:
+            f = 1 - BW_array  # Keep dark values high (algorithm will match dark areas)
+            print("🎨 NORMAL MODE: Targeting dark areas (black-on-white)")
+
+        f[~circular_mask] = 0
         t_mask = time.time() - t_start
         print(f"  ⏱️ Mask creation: {t_mask:.3f}s")
         
@@ -203,22 +213,23 @@ def generate_pattern(data):
         circle_radius_cm = float(params.get('circle_radius_cm', 30))
         thread_thickness_mm = float(params.get('thread_thickness_mm', 0.5))
         ideal_image_size = int(params.get('image_resolution', 300))
-        
+        invert_colors = bool(params.get('invert_colors', False))
+
         d, p_min, tstart, tend = 0.036, 0.00016, 0.0014, 0.0161
         p_theshold = 0.0037
-        
+
         print(f"\n{'='*60}")
         print(f"String Art Generation")
         print(f"{'='*60}")
         print(f"  Nails: {Num_Nails}, Max Lines: {num_max_lines}")
         print(f"  Resolution: {ideal_image_size}x{ideal_image_size}")
         print(f"  Acceleration: {'CUDA (Native C++)' if CUDA_AVAILABLE else 'CPU (NumPy/SciPy)'}")
-        
+
         # --- Calculate image hash and cache key ---
         header, encoded = image_data_url.split(",", 1)
         image_bytes = base64.b64decode(encoded)
         img_hash = hashlib.sha256(image_bytes).hexdigest()[:16]
-        cache_key = f"{img_hash}_{Num_Nails}_{ideal_image_size}" # <-- Use new cache key format
+        cache_key = f"{img_hash}_{Num_Nails}_{ideal_image_size}_{invert_colors}" # <-- Include invert_colors in cache key
         
         use_cache = False
         
@@ -232,12 +243,12 @@ def generate_pattern(data):
         
         if not use_cache:
             print(f"⚙️ No cache found for key {cache_key}. Running pre-processing first...")
-            
+
             # Run the preprocessing step
-            preprocess_result = preprocess_image(image_bytes, Num_Nails, ideal_image_size)
+            preprocess_result = preprocess_image(image_bytes, Num_Nails, ideal_image_size, invert_colors)
             if preprocess_result['status'] == 'error':
                 return preprocess_result # Propagate error
-            
+
             # Now load from cache (which must exist now)
             cached = preprocessing_cache[cache_key]
             p = cached['p'].copy() # <-- Use a copy

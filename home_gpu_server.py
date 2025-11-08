@@ -160,6 +160,7 @@ class PreprocessRequest(BaseModel):
     imageData: str
     num_nails: int
     image_resolution: int
+    invert_colors: bool = False
 
 class GenerateRequest(BaseModel):
     imageData: str
@@ -194,8 +195,8 @@ async def preprocess_image(request: PreprocessRequest):
         raise HTTPException(status_code=503, detail="GPU is busy")
     
     job_id = f"preprocess_{int(time.time() * 1000)}"
-    cache_key = f"{request.num_nails}_{request.image_resolution}_{hash(request.imageData)}"
-    
+    cache_key = f"{request.num_nails}_{request.image_resolution}_{request.invert_colors}_{hash(request.imageData)}"
+
     if cache_key in gpu_state.preprocessing_cache:
         logger.info(f"✅ Using cached preprocessing for {cache_key}")
         cached_data = gpu_state.preprocessing_cache[cache_key]
@@ -229,7 +230,15 @@ async def preprocess_image(request: PreprocessRequest):
         circular_mask = X**2 + Y**2 <= R**2
         
         BW_array[~circular_mask] = 1.0
-        f = 1 - BW_array
+
+        # Handle inverted colors mode
+        if request.invert_colors:
+            f = BW_array  # Keep bright values high (algorithm will match bright areas)
+            logger.info("🎨 INVERTED MODE: Targeting bright areas (white-on-black)")
+        else:
+            f = 1 - BW_array  # Keep dark values high (algorithm will match dark areas)
+            logger.info("🎨 NORMAL MODE: Targeting dark areas (black-on-white)")
+
         f[~circular_mask] = 0
         
         Num_Nails = request.num_nails
